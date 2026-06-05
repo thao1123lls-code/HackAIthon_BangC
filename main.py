@@ -22,7 +22,7 @@ def main():
     
     # ĐÃ SỬA: Hạ xuống bản 0.5B để test trên máy cá nhân không bị tràn RAM
     # Khi nộp bài lên Docker Hub, em đổi số 0.5B này thành 7B
-    llm = LLM(model="Qwen/Qwen1.5-7B-Chat", trust_remote_code=True) 
+   llm = LLM(model="Qwen/Qwen3.5-7B-Chat", trust_remote_code=True)
     
     sampling_params = SamplingParams(temperature=0.1, max_tokens=256)
     df = pd.read_csv(input_path)
