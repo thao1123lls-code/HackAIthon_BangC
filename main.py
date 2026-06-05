@@ -1,49 +1,61 @@
 import pandas as pd
 import os
 import re
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from vllm import LLM, SamplingParams
+from rag import RAGSystem # Cú pháp Import module tra cứu vừa viết
 
 def extract_answer(text):
-    # Dùng Regex để tìm ký tự A, B, C hoặc D trong câu trả lời của AI
-    match = re.search(r'\b([ABCD])\b', text)
-    return match.group(1) if match else "A" # Trả về A nếu AI trả lời lan man không rõ ý
+    match = re.search(r'Đáp án cuối cùng là:\s*([ABCD])', text, re.IGNORECASE)
+    if match:
+        return match.group(1).upper()
+    fallback = re.findall(r'\b([ABCD])\b', text)
+    return fallback[-1] if fallback else "A"
 
 def main():
-    # 1. Định nghĩa đường dẫn I/O theo đúng chuẩn Ban tổ chức
-    input_path = "/data/public_test.csv"
-    output_path = "/output/pred.csv"
+    # Tự động nhận diện môi trường: chạy trên máy tính (local) hay trong Docker (khi chấm điểm)
+    input_path = "/data/public_test.csv" if os.path.exists("/data") else "data/public_test.csv"
+    output_dir = "/output" if os.path.exists("/output") else "output"
+    output_path = f"{output_dir}/pred.csv"
 
-    # Tạo file test giả lập nếu chạy ở local để code không bị lỗi
-    if not os.path.exists(input_path):
-        os.makedirs("/data", exist_ok=True)
-        pd.DataFrame([
-            {"qid": "1", "question": "Hà Nội là thủ đô nước nào? A. Lào B. Việt Nam C. Thái Lan D. Mỹ"}
-        ]).to_csv(input_path, index=False)
-
-    # 2. Tải mô hình (sử dụng Qwen3.5 theo quy định)
-    model_name = "Qwen/Qwen1.5-0.5B-Chat" # Dùng bản nhỏ gọn để test code I/O
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
-
-    # 3. Đọc dữ liệu
+    # 1. Khởi tạo song song cả 2 mô hình
+    rag = RAGSystem(kb_path="knowledge_base.txt") # BGE-m3 chạy trước
+    
+    # ĐÃ SỬA: Hạ xuống bản 0.5B để test trên máy cá nhân không bị tràn RAM
+    # Khi nộp bài lên Docker Hub, em đổi số 0.5B này thành 7B
+    llm = LLM(model="Qwen/Qwen1.5-7B-Chat", trust_remote_code=True) 
+    
+    sampling_params = SamplingParams(temperature=0.1, max_tokens=256)
     df = pd.read_csv(input_path)
-    results = []
-
-    # 4. Đưa từng câu hỏi qua AI xử lý
+    
+    prompts = []
     for index, row in df.iterrows():
-        prompt = f"Bạn là một chuyên gia giải trắc nghiệm. Hãy chọn 1 đáp án đúng (A, B, C, D) cho câu hỏi sau và chỉ in ra chữ cái đó, không giải thích: {row['question']}"
+        question = row['question']
         
-        inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-        outputs = model.generate(**inputs, max_new_tokens=10)
-        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        # 2. Dùng BGE-m3 tra cứu tài liệu liên quan đến câu hỏi này
+        context = rag.search(question, top_k=2)
         
-        final_answer = extract_answer(response)
-        results.append({"qid": row['qid'], "answer": final_answer})
+        # 3. Ép ngữ cảnh vào Prompt (Bí kíp chống ảo giác)
+        prompt = f"""Bạn là một chuyên gia. Hãy đọc kỹ thông tin tham khảo sau đây:
+[THÔNG TIN THAM KHẢO]: {context}
 
-    # 5. Ghi kết quả ra file chuẩn
-    os.makedirs("/output", exist_ok=True)
+Dựa vào thông tin trên, hãy giải quyết câu hỏi trắc nghiệm sau:
+{question}
+
+Hãy suy luận ngắn gọn. BẮT BUỘC chốt lại bằng câu: "Đáp án cuối cùng là: [X]" (Thay [X] bằng A, B, C hoặc D)."""
+        prompts.append(prompt)
+
+    # 4. Để Qwen đọc prompt (đã bao gồm tài liệu) và đưa ra đáp án
+    outputs = llm.generate(prompts, sampling_params)
+
+    results = []
+    for i, output in enumerate(outputs):
+        generated_text = output.outputs[0].text
+        final_answer = extract_answer(generated_text)
+        results.append({"qid": df.iloc[i]['qid'], "answer": final_answer})
+
+    os.makedirs(output_dir, exist_ok=True)
     pd.DataFrame(results).to_csv(output_path, index=False)
-    print("Đã hoàn thành và ghi file pred.csv thành công!")
+    print(f"Luồng RAG + LLM đã hoàn tất! File kết quả lưu tại: {output_path}")
 
 if __name__ == "__main__":
     main()
