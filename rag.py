@@ -12,11 +12,18 @@ class RAGSystem:
         # Khởi tạo Qwen-Rerank để làm giám khảo chấm điểm lại tài liệu
         self.reranker = FlagReranker('Qwen/Qwen-Rerank', use_fp16=True)
         
-        # Đọc dữ liệu từ file kiến thức
+        # --- CẬP NHẬT MỚI: Kỹ thuật Chunking (Cắt nhỏ văn bản có gối đầu) ---
+        def chunk_text(text, chunk_size=200, overlap=50):
+            words = text.split()
+            # Cắt thành các khối 200 từ, mỗi khối gối lên nhau 50 từ để giữ liền mạch ngữ cảnh
+            return [" ".join(words[i:i + chunk_size]) for i in range(0, len(words), max(1, chunk_size - overlap))]
+
+        # Đọc dữ liệu từ file kiến thức và áp dụng hàm cắt nhỏ
         with open(kb_path, 'r', encoding='utf-8') as f:
-            self.documents = [line.strip() for line in f if line.strip()]
+            raw_text = f.read()
+            self.documents = chunk_text(raw_text, chunk_size=200, overlap=50)
             
-        print(f"Đã nạp {len(self.documents)} tài liệu. Đang tạo Vector...")
+        print(f"Đã cắt thành {len(self.documents)} đoạn tài liệu. Đang tạo Vector...")
         embeddings = self.model.encode(self.documents, return_dense=True, return_sparse=False, return_colbert_vecs=False)
         self.doc_vectors = embeddings['dense_vecs']
         print("Hệ thống Advanced RAG Sẵn sàng!")
