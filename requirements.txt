@@ -2,4 +2,5 @@ vllm
 FlagEmbedding
 pandas
 scikit-learn
+tqdm
 uvloop; sys_platform != 'win32'

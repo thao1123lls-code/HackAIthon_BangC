@@ -1,3 +1,8 @@
+"""
+HackAIthon 2026 Bảng C - AI Multiple Choice QA System
+Main inference engine with RAG + vLLM optimization
+"""
+from typing import Optional, Dict, List, Tuple
 import pandas as pd
 import os
 import re
@@ -5,48 +10,89 @@ import sys
 import logging
 from pathlib import Path
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+try:
+    from tqdm import tqdm
+except ImportError:
+    tqdm = lambda x, **kwargs: x
 
 try:
     from vllm import LLM, SamplingParams
 except ImportError as e:
-    logger.error(f"Failed to import vLLM: {e}")
-    logger.error("This system requires GPU support. Install with: pip install vllm")
+    print(f"Failed to import vLLM: {e}")
+    print("This system requires GPU support. Install with: pip install vllm")
     sys.exit(1)
 
 from rag import RAGSystem
 
-def extract_answer(generated_text):
-    """Extract answer from generated text with 3-layer fallback strategy"""
-    if not generated_text or not isinstance(generated_text, str):
-        return "A"
+# ==================== CONSTANTS ====================
+MODEL_NAME = "Qwen/Qwen3.5-7B-Chat"
+GPU_MEMORY_UTIL = 0.9
+MAX_MODEL_LEN = 2048
+MAX_TOKENS = 256
+TEMPERATURE = 0.0
+DEFAULT_ANSWER = "A"
+KB_PATH = "knowledge_base.txt"
+RAG_TOP_K = 2
+LOG_FORMAT = '%(asctime)s - %(levelname)s - %(message)s'
+
+# Pre-compile regex patterns for performance
+REGEX_PATTERNS = {
+    'primary': re.compile(r'Đáp án:\s*([ABCD])', re.IGNORECASE),
+    'keywords': re.compile(r'(chọn|là)\s*([ABCD])', re.IGNORECASE),
+    'last_choice': re.compile(r'\b([ABCD])\b'),
+}
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
+logger = logging.getLogger(__name__)
+
+def extract_answer(generated_text: str) -> str:
+    """
+    Extract answer from generated text with 3-layer fallback strategy.
     
-    # Layer 1: Primary pattern "Đáp án: X"
-    match = re.search(r'Đáp án:\s*([ABCD])', generated_text, re.IGNORECASE)
+    Args:
+        generated_text: LLM output text
+    
+    Returns:
+        Single character: A, B, C, or D
+    
+    Performance: O(n) where n is text length, optimized with pre-compiled regex
+    """
+    if not generated_text or not isinstance(generated_text, str):
+        return DEFAULT_ANSWER
+    
+    # Layer 1: Primary pattern "Đáp án: X" (fastest)
+    match = REGEX_PATTERNS['primary'].search(generated_text)
     if match: 
         return match.group(1).upper()
     
-    # Layer 2: Keywords "chọn" or "là"
-    match_2 = re.search(r'(chọn|là)\s*([ABCD])', generated_text, re.IGNORECASE)
+    # Layer 2: Keywords "chọn" or "là" (medium)
+    match_2 = REGEX_PATTERNS['keywords'].search(generated_text)
     if match_2: 
         return match_2.group(2).upper()
 
-    # Layer 3: Last ABCD character
-    matches = re.findall(r'\b([ABCD])\b', generated_text)
+    # Layer 3: Last ABCD character (slower but comprehensive)
+    matches = REGEX_PATTERNS['last_choice'].findall(generated_text)
     if matches: 
         return matches[-1].upper()
     
     # Layer 4: Default fallback
-    logger.warning(f"Could not extract answer, using default 'A'. Text: {generated_text[:100]}")
-    return "A"
+    logger.warning(f"Could not extract answer, using default '{DEFAULT_ANSWER}'. Text: {generated_text[:100]}")
+    return DEFAULT_ANSWER
 
-def validate_input_file(file_path):
-    """Validate input CSV file exists and has correct format"""
+def validate_input_file(file_path: str) -> pd.DataFrame:
+    """
+    Validate input CSV file format and content.
+    
+    Args:
+        file_path: Path to CSV file
+    
+    Returns:
+        Cleaned DataFrame with validated questions
+    
+    Raises:
+        FileNotFoundError, ValueError
+    """
     if not os.path.exists(file_path):
         logger.error(f"Input file not found: {file_path}")
         raise FileNotFoundError(f"Input file not found: {file_path}")
@@ -68,20 +114,20 @@ def validate_input_file(file_path):
         logger.error("Input CSV is empty")
         raise ValueError("Input CSV contains no data rows")
     
-    # Check for missing values
-    if df['question'].isna().any():
-        logger.warning(f"Found {df['question'].isna().sum()} rows with missing questions")
-        df = df.dropna(subset=['question'])
-        logger.info(f"Removed rows with missing questions. Remaining: {len(df)} rows")
+    # Clean missing values
+    initial_len = len(df)
+    df = df.dropna(subset=['question'])
+    if len(df) < initial_len:
+        logger.warning(f"Removed {initial_len - len(df)} rows with missing questions. Remaining: {len(df)}")
     
     if len(df) == 0:
         raise ValueError("All rows have missing questions after cleanup")
     
-    logger.info(f"Validated input file: {len(df)} questions found")
+    logger.info(f"✓ Validated input: {len(df)} questions")
     return df
 
-def validate_knowledge_base(kb_path):
-    """Validate knowledge base file exists and is readable"""
+def validate_knowledge_base(kb_path: str) -> bool:
+    """Validate knowledge base file exists and is readable."""
     if not os.path.exists(kb_path):
         logger.error(f"Knowledge base not found: {kb_path}")
         raise FileNotFoundError(f"Knowledge base not found: {kb_path}")
@@ -93,92 +139,46 @@ def validate_knowledge_base(kb_path):
         if len(content.strip()) == 0:
             logger.warning(f"Knowledge base is empty: {kb_path}")
         else:
-            logger.info(f"Knowledge base loaded: {len(content)} characters")
-        
-        return content
+            logger.info(f"✓ Knowledge base loaded: {len(content)} chars")
+        return True
     except Exception as e:
-        logger.error(f"Failed to read knowledge base {kb_path}: {e}")
+        logger.error(f"Failed to read knowledge base: {e}")
         raise ValueError(f"Failed to read knowledge base: {e}")
 
-def ensure_output_directory(output_dir):
-    """Ensure output directory exists and is writable"""
+def ensure_output_directory(output_dir: str) -> bool:
+    """Ensure output directory exists and is writable."""
     try:
         os.makedirs(output_dir, exist_ok=True)
         
         # Test write permission
         test_file = os.path.join(output_dir, ".test")
-        with open(test_file, 'w') as f:
-            f.write("test")
-        os.remove(test_file)
-        
-        logger.info(f"Output directory ready: {output_dir}")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to create/access output directory {output_dir}: {e}")
-        raise PermissionError(f"Cannot write to output directory: {e}")
-
-def main():
-    """Main inference pipeline with comprehensive error handling"""
-    try:
-        # Step 1: Determine paths (Docker vs local)
-        input_path = "/data/public_test.csv" if os.path.exists("/data") else "data/public_test.csv"
-        output_dir = "/output" if os.path.exists("/output") else "output"
-        output_path = os.path.join(output_dir, "pred.csv")
-        kb_path = "knowledge_base.txt"
-        
-        logger.info(f"Input path: {input_path}")
-        logger.info(f"Output path: {output_path}")
-        logger.info(f"Knowledge base: {kb_path}")
-        
-        # Step 2: Validate all input files
-        logger.info("Validating input files...")
-        df = validate_input_file(input_path)
-        validate_knowledge_base(kb_path)
-        ensure_output_directory(output_dir)
-        
-        # Step 3: Initialize RAG system
-        logger.info("Initializing RAG system...")
+    prepare_prompts(df: pd.DataFrame, rag: RAGSystem) -> Tuple[List[str], pd.DataFrame]:
+    """
+    Prepare prompts from questions with RAG context.
+    
+    Args:
+        df: DataFrame with 'qid' and 'question' columns
+        rag: Initialized RAG system
+    
+    Returns:
+        Tuple of (prompts list, filtered dataframe)
+    """
+    prompts = []
+    valid_indices = []
+    
+    for idx, (index, row) in enumerate(tqdm(df.iterrows(), total=len(df), desc="Preparing prompts")):
         try:
-            rag = RAGSystem(kb_path=kb_path)
-            logger.info("RAG system initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize RAG system: {e}")
-            raise
-        
-        # Step 4: Initialize vLLM
-        logger.info("Initializing vLLM (loading model)...")
-        try:
-            llm = LLM(
-                model="Qwen/Qwen3.5-7B-Chat", 
-                trust_remote_code=True,
-                gpu_memory_utilization=0.9,  # Use 90% VRAM for batch processing
-                max_model_len=2048  # Limit context length for speed
-            )
-            logger.info("vLLM initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize vLLM: {e}")
-            logger.error("Ensure you have a compatible GPU with CUDA support")
-            raise
-        
-        # Step 5: Prepare prompts
-        logger.info(f"Preparing {len(df)} prompts...")
-        sampling_params = SamplingParams(temperature=0.0, max_tokens=256)
-        prompts = []
-        
-        for index, row in df.iterrows():
-            try:
-                question = str(row['question']).strip()
-                
-                if not question:
-                    logger.warning(f"Row {index}: Empty question, skipping")
-                    continue
-                
-                # Get context from RAG
-                context = rag.search(question, top_k=2)
-                context_block = f"[THÔNG TIN THAM KHẢO]:\n{context}\n\n" if context else ""
-                
-                # Build prompt with reflective CoT
-                prompt = f"""Bạn là một hệ thống AI xuất sắc trong việc thi trắc nghiệm.
+            question = str(row['question']).strip()
+            if not question:
+                logger.warning(f"Row {index}: Empty question, skipping")
+                continue
+            
+            # Get context from RAG
+            context = rag.search(question, top_k=RAG_TOP_K)
+            context_block = f"[THÔNG TIN THAM KHẢO]:\n{context}\n\n" if context else ""
+            
+            # Build prompt with reflective CoT
+            prompt = f"""Bạn là một hệ thống AI xuất sắc trong việc thi trắc nghiệm.
 {context_block}
 Nhiệm vụ của bạn là giải quyết câu hỏi dưới đây một cách logic và cẩn thận:
 {question}
@@ -189,47 +189,89 @@ Nhiệm vụ của bạn là giải quyết câu hỏi dưới đây một cách
 3. Chốt lại đáp án đúng nhất.
 Dòng cuối cùng BẮT BUỘC có định dạng: "Đáp án: X" (trong đó X là A, B, C hoặc D).
 Không in thêm bất kỳ ký tự nào sau dòng đáp án."""
-                
-                prompts.append(prompt)
             
-            except Exception as e:
-                logger.warning(f"Row {index}: Failed to prepare prompt - {e}")
-                continue
+            prompts.append(prompt)
+            valid_indices.append(index)
+        
+        except Exception as e:
+            logger.warning(f"Row {index}: Failed to prepare - {e}")
+            continue
+    
+    logger.info(f"✓ Prepared {len(prompts)} prompts (skipped {len(df) - len(prompts)})")
+    return prompts, df.loc[valid_indices].reset_index(drop=True)
+
+def main() -> bool:
+    """
+    Main inference pipeline with optimizations.
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Step 1: Determine paths (Docker vs local)
+        input_path = "/data/public_test.csv" if os.path.exists("/data") else "data/public_test.csv"
+        output_dir = "/output" if os.path.exists("/output") else "output"
+        output_path = os.path.join(output_dir, "pred.csv")
+        
+        logger.info(f"Input: {input_path} | Output: {output_path}")
+        
+        # Step 2: Validate all input files
+        logger.info("Step 1/6: Validating files...")
+        df = validate_input_file(input_path)
+        validate_knowledge_base(KB_PATH)
+        ensure_output_directory(output_dir)
+        
+        # Step 3: Initialize RAG system
+        logger.info("Step 2/6: Initializing RAG system...")
+        rag = RAGSystem(kb_path=KB_PATH)
+        
+        # Step 4: Prepare prompts with progress bar
+        logger.info("Step 3/6: Preparing prompts with RAG context...")
+        prompts, df_valid = prepare_prompts(df, rag)
         
         if not prompts:
-            logger.error("No valid prompts to generate. Check input file.")
-            raise ValueError("No valid prompts found in input file")
+            raise ValueError("No valid prompts generated")
         
-        logger.info(f"Prepared {len(prompts)} prompts (skipped {len(df) - len(prompts)})")
+        # Step 5: Initialize vLLM
+        logger.info("Step 4/6: Initializing vLLM (this may take 1-2 minutes)...")
+        llm = LLM(
+            model=MODEL_NAME, 
+            trust_remote_code=True,
+            gpu_memory_utilization=GPU_MEMORY_UTIL,
+            max_model_len=MAX_MODEL_LEN
+        )
+        logger.info(f"✓ vLLM initialized with {MODEL_NAME}")
         
         # Step 6: Generate answers
-        logger.info(f"Generating answers for {len(prompts)} questions...")
-        try:
-            outputs = llm.generate(prompts, sampling_params)
-            logger.info(f"Generated {len(outputs)} answers successfully")
-        except Exception as e:
-            logger.error(f"Failed to generate answers: {e}")
-            raise
+        logger.info(f"Step 5/6: Generating answers ({len(prompts)} questions)...")
+        sampling_params = SamplingParams(temperature=TEMPERATURE, max_tokens=MAX_TOKENS)
+        outputs = llm.generate(prompts, sampling_params)
+        logger.info(f"✓ Generated {len(outputs)} answers")
         
         # Step 7: Extract and compile results
-        logger.info("Extracting final answers...")
+        logger.info("Step 6/6: Extracting final answers...")
         results = []
         
-        for i, output in enumerate(outputs):
+        for i, output in enumerate(tqdm(outputs, desc="Extracting answers")):
             try:
                 generated_text = output.outputs[0].text if output.outputs else ""
                 final_answer = extract_answer(generated_text)
-                qid = df.iloc[i]['qid']
+                qid = df_valid.iloc[i]['qid']
                 results.append({"qid": qid, "answer": final_answer})
             except Exception as e:
-                logger.warning(f"Question {i}: Failed to extract answer - {e}, using default 'A'")
-                results.append({"qid": df.iloc[i]['qid'], "answer": "A"})
+                logger.warning(f"Q{i}: Failed to extract - {e}, using '{DEFAULT_ANSWER}'")
+                results.append({"qid": df_valid.iloc[i]['qid'], "answer": DEFAULT_ANSWER})
         
         # Step 8: Save results
-        logger.info(f"Saving {len(results)} results to {output_path}...")
-        try:
-            results_df = pd.DataFrame(results)
-            results_df.to_csv(output_path, index=False)
+        results_df = pd.DataFrame(results)
+        results_df.to_csv(output_path, index=False)
+        
+        logger.info(f"✓ Successfully saved {len(results_df)} predictions")
+        logger.info(f"✓ Output: {output_path}")
+        return True
+    
+    except Exception as e:
+        logger.error(f"❌ Pipeline failed: {e}", exc_info=Truendex=False)
             logger.info(f"✓ Successfully saved predictions to {output_path}")
             logger.info(f"Result format: {len(results_df)} rows, columns: {list(results_df.columns)}")
         except Exception as e:
