@@ -112,7 +112,16 @@ Luồng Inference Tối ưu đã hoàn tất!
 Kết quả tại: /output/pred.csv
 ```
 
+**GPU smoke test (khuyến nghị trước khi chạy inference):**
+```bash
+docker run --gpus all --rm phuongthao12082007/phuongthao_innovator:v1 \
+  python -c "import torch; print('CUDA available:', torch.cuda.is_available()); print('CUDA device count:', torch.cuda.device_count())"
+```
+
+Nếu `CUDA available: True` và `device count > 0` nghĩa là container có thể dùng GPU cho inference.
+
 **Nếu lỗi:** [Troubleshooting Docker](#troubleshooting-docker)
+
 
 ### Bước 5: Kiểm tra Kết quả
 

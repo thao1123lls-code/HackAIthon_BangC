@@ -149,10 +149,19 @@ def ensure_output_directory(output_dir: str) -> bool:
     """Ensure output directory exists and is writable."""
     try:
         os.makedirs(output_dir, exist_ok=True)
-        
+
         # Test write permission
         test_file = os.path.join(output_dir, ".test")
-    prepare_prompts(df: pd.DataFrame, rag: RAGSystem) -> Tuple[List[str], pd.DataFrame]:
+        with open(test_file, "w", encoding="utf-8") as f:
+            f.write("ok")
+        os.remove(test_file)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to ensure output directory: {e}")
+        raise
+
+
+def prepare_prompts(df: pd.DataFrame, rag: RAGSystem) -> Tuple[List[str], pd.DataFrame]:
     """
     Prepare prompts from questions with RAG context.
     
@@ -209,9 +218,21 @@ def main() -> bool:
     """
     try:
         # Step 1: Determine paths (Docker vs local)
-        input_path = "/data/public_test.csv" if os.path.exists("/data") else "data/public_test.csv"
+        input_base = "/data" if os.path.exists("/data") else "data"
         output_dir = "/output" if os.path.exists("/output") else "output"
         output_path = os.path.join(output_dir, "pred.csv")
+
+        # Prefer public_test.csv, fallback to private_test.csv (helps with more organizers)
+        public_csv = os.path.join(input_base, "public_test.csv")
+        private_csv = os.path.join(input_base, "private_test.csv")
+        if os.path.exists(public_csv):
+            input_path = public_csv
+        elif os.path.exists(private_csv):
+            input_path = private_csv
+        else:
+            # Keep original fallback for compatibility
+            input_path = os.path.join(input_base, "public_test.csv")
+
         
         logger.info(f"Input: {input_path} | Output: {output_path}")
         
@@ -271,17 +292,7 @@ def main() -> bool:
         return True
     
     except Exception as e:
-        logger.error(f"❌ Pipeline failed: {e}", exc_info=Truendex=False)
-            logger.info(f"✓ Successfully saved predictions to {output_path}")
-            logger.info(f"Result format: {len(results_df)} rows, columns: {list(results_df.columns)}")
-        except Exception as e:
-            logger.error(f"Failed to save results: {e}")
-            raise
-        
-        return True
-    
-    except Exception as e:
-        logger.error(f"Pipeline failed: {e}")
+        logger.error(f"❌ Pipeline failed: {e}", exc_info=True)
         return False
 
 if __name__ == "__main__":
