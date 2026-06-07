@@ -1,3 +1,17 @@
-Python là một ngôn ngữ lập trình bậc cao, đa đích, được sử dụng rộng rãi trong AI và Data Science.
-Trong kiến trúc MVC, chữ M viết tắt của Model, đóng vai trò quản lý dữ liệu và logic nghiệp vụ.
-PostgreSQL là một hệ quản trị cơ sở dữ liệu quan hệ mã nguồn mở mạnh mẽ.
+## Python & Lập Trình
+Python là một ngôn ngữ lập trình bậc cao, được sử dụng rộng rãi trong AI, Machine Learning, và Data Science. Python có syntax đơn giản, dễ học, tuy nhiên có hiệu suất thấp hơn C++/Java. Python 3 là phiên bản hiện tại và được khuyến khích sử dụng thay vì Python 2 (đã kết thúc hỗ trợ năm 2020). Các thư viện phổ biến: NumPy (xử lý mảng), Pandas (xử lý dữ liệu), Scikit-learn (machine learning), TensorFlow/PyTorch (deep learning).
+
+## Kiến Trúc & Thiết Kế
+Kiến trúc MVC (Model-View-Controller): Model quản lý dữ liệu và logic, View hiển thị dữ liệu, Controller xử lý input. Kiến trúc Microservices chia ứng dụng thành các service độc lập, dễ scale. REST API sử dụng HTTP methods (GET, POST, PUT, DELETE) để giao tiếp giữa client-server. Pattern Factory: tạo object mà không cần biết class cụ thể. Pattern Observer: một object (Subject) thay đổi, tự động thông báo cho các observer khác.
+
+## Cơ Sở Dữ Liệu
+PostgreSQL là hệ quản trị CSDL quan hệ mã nguồn mở mạnh mẽ, hỗ trợ JSONB, Full-text search, Transactions. MySQL: CSDL phổ biến nhưng ít tính năng hơn PostgreSQL. MongoDB: NoSQL database, lưu dữ liệu dạng JSON documents, không có schema cố định. INDEX trong database tăng tốc độ query nhưng giảm tốc độ insert/update. Primary Key là định danh duy nhất, Foreign Key liên kết giữa các bảng.
+
+## Lựa Chọn Đúng & Sai
+Giữa A) Java, B) Python, C) C++, D) JavaScript cho AI: Đáp án chính là B (Python) vì có thư viện ML phong phú. Trong MVC, Model không phải là: A) View component, B) User interface, C) Presentation layer, D) Database query builder - Đáp án D sai, Model IS database query builder, Đáp án đúng là A/B/C.
+
+## Khái Niệm Kỹ Thuật
+Caching: lưu trữ dữ liệu thường dùng trong bộ nhớ nhanh (RAM, Redis) để tránh truy cập database mỗi lần. Load Balancing: phân phối request tới nhiều server để cân bằng tải. Normalization: tổ chức dữ liệu trong database để giảm redundancy. Asynchronous programming: không chờ task hoàn thành trước khi thực hiện task khác (sử dụng async/await, Promises). Git Branching: main/master là branch chính (production), dev/develop dùng phát triển, feature/* dùng phát triển feature cụ thể.
+
+## Machine Learning & AI
+LLM (Large Language Models): mô hình học sâu với hàng tỷ parameters, được huấn luyện trên lượng lớn text data (ví dụ: GPT, Qwen). Retrieval Augmented Generation (RAG): kết hợp information retrieval với generative models, trước tiên tìm kiếm documents liên quan, sau đó đưa vào prompt để sinh response. Prompt Engineering: thiết kế prompt hiệu quả để điều hướng LLM output. Temperature parameter trong LLM: cao (0.8-1.0) → output random/creative, thấp (0.0-0.3) → output deterministic/consistent. Top-k sampling: chỉ sample từ k tokens có xác suất cao nhất, giảm output ngây ngô.

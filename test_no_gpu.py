@@ -28,7 +28,7 @@ errors = []
 if not os.path.exists("knowledge_base.txt"):
     errors.append("knowledge_base.txt not found")
 else:
-    with open("knowledge_base.txt", "r") as f:
+    with open("knowledge_base.txt", "r", encoding="utf-8", errors="ignore") as f:
         kb_content = f.read()
     kb_lines = len(kb_content.split('\n'))
     print(f"  ✓ knowledge_base.txt ({len(kb_content)} bytes, {kb_lines} lines)")
