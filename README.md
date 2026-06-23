@@ -52,16 +52,16 @@ Mục tiêu Vòng 1: Tối đa hóa Độ chính xác (80%) & Tối giản Thờ
 
 ```mermaid
 flowchart TD
-    A[INPUT: File JSON chứa câu hỏi] --> B[HỆ THỐNG ADVANCED RAG]
+    A["INPUT: File JSON chứa câu hỏi"] --> B["HỆ THỐNG ADVANCED RAG"]
 
-    subgraph RAG[RAG System - 2 Stages]
-        B1[Chặng 1: Vector Retrieval (BGE-M3)\n- Lấy Top 10] --> B2[Chặng 2: Semantic Reranking (Qwen-Rerank)\n- Chọn Top 2]
+    subgraph RAG["RAG System - 2 Stages"]
+        B1["Chặng 1: Vector Retrieval (BGE-M3)<br>- Lấy Top 10"] --> B2["Chặng 2: Semantic Reranking (Qwen-Rerank)<br>- Chọn Top 2"]
     end
 
-    B --> C[PROMPT + CONTEXT + QUESTION\n(Reflective CoT Format)]
-    C --> D[LLM Engine (vLLM)\n- Temperature = 0.0 (Greedy)\n- Max sequence = 2048]
-    D --> E[ANSWER EXTRACTION (3-layer fallback)\n- Layer 1: "Đáp án: X"\n- Layer 2: "Chọn/Là X"\n- Layer 3: ký tự ABCD cuối cùng]
-    E --> F[OUTPUT: Ghi vào file submission]
+    B --> C["PROMPT + CONTEXT + QUESTION<br>(Reflective CoT Format)"]
+    C --> D["LLM Engine (vLLM)<br>- Temperature = 0.0 (Greedy)<br>- Max sequence = 2048"]
+    D --> E["ANSWER EXTRACTION (3-layer fallback)<br>- Layer 1: 'Đáp án: X'<br>- Layer 2: 'Chọn/Là X'<br>- Layer 3: ký tự ABCD cuối cùng"]
+    E --> F["OUTPUT: Ghi vào file submission"]
 ```
 
 
