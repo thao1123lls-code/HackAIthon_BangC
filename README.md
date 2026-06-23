@@ -49,47 +49,22 @@ Hệ thống kết hợp:
 Mục tiêu Vòng 1: Tối đa hóa Độ chính xác (80%) & Tối giản Thời gian Suy luận (20%)
 
 🏗️ Kiến trúc hệ thống
-Plaintext
-┌─────────────────────────────────────────────────────────────┐
-│                   INPUT: File JSON chứa câu hỏi             │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-        ┌─────────────────────────────────┐
-        │  HỆ THỐNG ADVANCED RAG          │
-        │  ├─ Chặng 1: BGE-M3 Retrieval   │
-        │  │  (Lấy Top 10 tài liệu)       │
-        │  └─ Chặng 2: Qwen-Rerank        │
-        │     (Chọn Top 2 tài liệu)       │
-        └────────────┬────────────────────┘
-                     │
-                     ▼
-    ┌──────────────────────────────────┐
-    │  PROMPT + CONTEXT + QUESTION     │
-    │  (Reflective CoT Format)         │
-    └────────────┬─────────────────────┘
-                 │
-                 ▼
-    ┌──────────────────────────────────┐
-    │  LLM ENGINE (vLLM)               │
-    │  • GPU Memory: 90% VRAM          │
-    │  • Max Sequence: 2048 tokens     │
-    │  • Temperature: 0.0 (Greedy)     │
-    │  • Model: Qwen3.5-7B-Chat        │
-    └────────────┬─────────────────────┘
-                 │
-                 ▼
-    ┌──────────────────────────────────┐
-    │  ANSWER EXTRACTION (3-layer)     │
-    │  • Layer 1: Regex "Đáp án: X"    │
-    │  • Layer 2: Keywords "Chọn X"    │
-    │  • Layer 3: Last ABCD letter     │
-    └────────────┬─────────────────────┘
-                 │
-                 ▼
-    ┌──────────────────────────────────┐
-    │  OUTPUT: Ghi vào file submission │
-    └──────────────────────────────────┘
+
+```mermaid
+flowchart TD
+    A[INPUT: File JSON chứa câu hỏi] --> B[HỆ THỐNG ADVANCED RAG]
+
+    subgraph RAG[RAG System - 2 Stages]
+        B1[Chặng 1: Vector Retrieval (BGE-M3)\n- Lấy Top 10] --> B2[Chặng 2: Semantic Reranking (Qwen-Rerank)\n- Chọn Top 2]
+    end
+
+    B --> C[PROMPT + CONTEXT + QUESTION\n(Reflective CoT Format)]
+    C --> D[LLM Engine (vLLM)\n- Temperature = 0.0 (Greedy)\n- Max sequence = 2048]
+    D --> E[ANSWER EXTRACTION (3-layer fallback)\n- Layer 1: "Đáp án: X"\n- Layer 2: "Chọn/Là X"\n- Layer 3: ký tự ABCD cuối cùng]
+    E --> F[OUTPUT: Ghi vào file submission]
+```
+
+
 
 ⚙️ Công nghệ sử dụng
 Thành phần | Công nghệ | Vai trò
