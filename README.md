@@ -2,7 +2,7 @@
 Hệ thống AI Trắc nghiệm Thông minh với RAG & vLLM
 Thí sinh: Hoàng Phương Thảo (Lớp 25DPM - Đại học Công nghệ Đồng Nai)
 Loại thi: Cá nhân
-Docker Hub: phuongthao12082007/phuongthao_innovator:v1
+Docker Hub: phuongthao12082007/phuongthao_innovator:v2
 Lời ngỏ
 
 📋 Mục lục
@@ -98,12 +98,12 @@ Note: Ban tổ chức không yêu cầu bắt buộc GPU. Hệ thống này đư
 Phương án 1: Sử dụng Docker (Khuyên dùng)
 Bước 1: Kéo image từ Docker Hub
 ```bash
-docker pull phuongthao12082007/phuongthao_innovator:v1
+docker pull phuongthao12082007/phuongthao_innovator:v2
 ```
 Bước 2: Chạy container với GPU
 ```bash
 docker run --gpus all -v /path/to/data:/data -v /path/to/output:/output \
-  phuongthao12082007/phuongthao_innovator:v1
+  phuongthao12082007/phuongthao_innovator:v2
 ```
 
 Phương án 2: Cài đặt Local (Yêu cầu GPU CUDA)
@@ -264,14 +264,14 @@ d:\HackAIthon_BangC\
 
 🐳 Docker
 ```bash
-docker build -t phuongthao_innovator:v1 .
-docker tag phuongthao_innovator:v1 phuongthao12082007/phuongthao_innovator:v1
-docker push phuongthao12082007/phuongthao_innovator:v1
+docker build -t phuongthao_innovator:v2 .
+docker tag phuongthao_innovator:v2 phuongthao12082007/phuongthao_innovator:v2
+docker push phuongthao12082007/phuongthao_innovator:v2
 
 docker run --gpus all \
   -v /path/to/data:/data \
   -v /path/to/output:/output \
-  phuongthao12082007/phuongthao_innovator:v1
+ phuongthao12082007/phuongthao_innovator:v2
 ```
 
 🔧 Troubleshooting
