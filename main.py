@@ -25,7 +25,7 @@ except ImportError as e:
 from rag import RAGSystem
 
 # ==================== CONSTANTS ====================
-MODEL_NAME = "Qwen/Qwen3.5-7B-Chat"
+MODEL_NAME = "Qwen/Qwen1.5-7B-Chat"
 GPU_MEMORY_UTIL = 0.9
 MAX_MODEL_LEN = 2048
 MAX_TOKENS = 256
@@ -98,7 +98,7 @@ def validate_input_file(file_path: str) -> pd.DataFrame:
         raise FileNotFoundError(f"Input file not found: {file_path}")
     
     try:
-        df = pd.read_csv(file_path)
+       df = pd.read_json(input_path)
     except Exception as e:
         logger.error(f"Failed to read CSV file {file_path}: {e}")
         raise ValueError(f"Failed to parse CSV file: {e}")

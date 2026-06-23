@@ -12,8 +12,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 4. Tải trước mô hình tra cứu BGE-m3
-RUN python -c "from FlagEmbedding import BGEM3FlagModel; BGEM3FlagModel('BAAI/bge-m3')"
-
+RUN python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Qwen/Qwen1.5-7B-Chat')"
 # 5. Tải trước mô hình Qwen 7B 
 # 5. Tải trước mô hình Qwen3.5 
 RUN python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Qwen/Qwen3.5-7B-Chat')"
