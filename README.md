@@ -33,13 +33,16 @@ Sơ đồ minh họa:
 
 ```mermaid
 flowchart TD
-  A[/code/private_test.json (qid, question)] --> B[RAG 2-stage]
-  B --> C[Prompt (context + question)]
-  C --> D[vLLM generate (per-sample)]
-  D --> E[Answer extraction regex]
-  E --> F1[/code/output/submission.csv]
-  E --> F2[/code/output/submission_time.csv]
+  A[/code/private_test.json] --> B[RAG 2-stage]
+  B --> C[Prompt]
+  C --> D[vLLM generate]
+  D --> E[Answer extraction]
+  E --> F1[submission.csv]
+  E --> F2[submission_time.csv]
 ```
+
+
+
 
 
 ## Data Processing
