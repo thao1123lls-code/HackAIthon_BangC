@@ -1,23 +1,28 @@
 # 1. Khai báo hệ điều hành nền
-FROM python:3.10-slim
+FROM nvidia/cuda:12.2.0-devel-ubuntu20.04
 
-# 2. Thiết lập thư mục làm việc trong container
-WORKDIR /app
+ENV DEBIAN_FRONTEND=noninteractive
 
-# CHỮA LỖI: Cài đặt bộ công cụ biên dịch C++ (gcc, g++) để build vLLM
-RUN apt-get update && apt-get install -y gcc g++ git build-essential
+# 1) Setup working directory
+WORKDIR /code
 
-# 3. Copy file môi trường và cài đặt thư viện
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# 2) Install Python + build tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-dev \
+    gcc g++ git build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# 4. Tải trước mô hình tra cứu BGE-m3
-RUN python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Qwen/Qwen1.5-7B-Chat')"
-# 5. Tải trước mô hình Qwen 7B 
-# 5. Tải trước mô hình Qwen3.5 
-RUN python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Qwen/Qwen3.5-7B-Chat')"
-# 6. Copy toàn bộ mã nguồn vào container
-COPY . .
+# 3) Install Python dependencies
+COPY requirements.txt /code/requirements.txt
+RUN python3 -m pip install --no-cache-dir -r /code/requirements.txt
 
-# 7. Lệnh khởi chạy mặc định khi container được gọi
-CMD ["python", "main.py"]
+# 4) Copy all source code
+COPY . /code
+
+# 5) Entry point
+RUN chmod +x /code/inference.sh
+CMD ["bash", "/code/inference.sh"]
+
+
