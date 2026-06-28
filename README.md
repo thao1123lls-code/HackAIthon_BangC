@@ -33,7 +33,7 @@ Sơ đồ minh họa:
 
 ```mermaid
 flowchart TD
-  A[/code/private_test.json] --> B[RAG 2-stage]
+  A[private_test.json] --> B[RAG 2-stage]
   B --> C[Prompt]
   C --> D[vLLM generate]
   D --> E[Answer extraction]
